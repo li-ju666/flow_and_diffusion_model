@@ -16,8 +16,8 @@ class FourierFeatures(nn.Module):
         return torch.cat([sin_features, cos_features], dim=-1)  # [B, dim]
 
 
-class UNetMLP(nn.Module):
-    def __init__(self, dim=256, num_classes=11, blocks=10):
+class MLPFiLM(nn.Module):
+    def __init__(self, dim=512, num_classes=11, blocks=10):
         super().__init__()
         # time → film
         self.time_embed = FourierFeatures(dim=dim)

@@ -1,27 +1,18 @@
 from torchvision.datasets import MNIST
-from torchvision import transforms
+from utils.transform import MNISTTransform
 from torch.utils.data import DataLoader
 from autoencoder.model import Autoencoder
+from utils.decode import decode_embeddings
 import torch
-
-
-def undo_normalization(normalized_tensor):
-    normalized_tensor = normalized_tensor.cpu()
-    mean = torch.tensor([0.1307]).view(1, 1, 1, 1)  # Reshape for broadcasting
-    std = torch.tensor([0.3081]).view(1, 1, 1, 1)   # Reshape for broadcasting
-    original_tensor = normalized_tensor * std + mean
-    return original_tensor
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+transformer = MNISTTransform()
 dataset = MNIST(
     root='/mimer/NOBACKUP/Datasets',
     train=True,
-    transform=transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])
+    transform=transformer.normalizer,
 )
 
 dataloader = DataLoader(
@@ -30,36 +21,33 @@ dataloader = DataLoader(
 
 model = Autoencoder().to(DEVICE)
 # load pretrained model if available
-model.load_state_dict(torch.load('autoencoder/checkpoint.pth', map_location=DEVICE), strict=True)
+model.load_state_dict(torch.load('checkpoints/autoencoder.pth', map_location=DEVICE), strict=True)
 
 # sample 5 images from the dataset
-sample_images = [dataset[i][0] for i in range(5)]
+num_samples = 5
+sample_images = [dataset[i][0] for i in range(num_samples)]
 sample_images = torch.stack(sample_images).to(DEVICE)
 
-# compare original and reconstructed images
+# encode the images
 with torch.no_grad():
-    model.eval()
-    reconstructed_images = model(sample_images)
-    # undo normalization for visualization
-    reconstructed_images = undo_normalization(reconstructed_images)
-    sample_images = undo_normalization(sample_images)
+    encoded_images = model.encode(sample_images)
 
-# visualize original and reconstructed images
+# decode the images
+images = decode_embeddings(encoded_images, model)
+
+# visualise the images versus the original images
 import matplotlib.pyplot as plt
+plt.figure(figsize=(10, 5))
+for i in range(num_samples):
+    plt.subplot(2, num_samples, i + 1)
+    plt.imshow(sample_images[i].cpu().numpy().squeeze(), cmap='gray')
+    plt.axis('off')
+    plt.title('Original')
 
-def show_images(original, reconstructed):
-    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(15, 6))
-    for i in range(5):
-        # original images
-        ax = axes[0, i]
-        ax.imshow(original[i].cpu().permute(1, 2, 0).numpy())
-        ax.axis('off')
-    for i in range(5):
-        # reconstructed images
-        ax = axes[1, i]
-        ax.imshow(reconstructed[i].cpu().permute(1, 2, 0).numpy())
-        ax.axis('off')
-    plt.savefig('autoencoder/reconstructed_images.png')
-    plt.close()
+    plt.subplot(2, num_samples, i + 1 + num_samples)
+    plt.imshow(images[i], cmap='gray')
+    plt.axis('off')
+    plt.title('Decoded')
 
-show_images(sample_images, reconstructed_images)
+plt.savefig('autoencoder/sample_images.png')
+plt.close()

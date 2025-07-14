@@ -3,7 +3,7 @@ import torch
 
 
 class Autoencoder(nn.Module):
-    def __init__(self):
+    def __init__(self, dim=512):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
                 nn.Conv2d(1, 32, stride=(1, 1), kernel_size=(3, 3), padding=1),
@@ -14,10 +14,10 @@ class Autoencoder(nn.Module):
                 nn.LeakyReLU(0.01),
                 nn.Conv2d(64, 64, stride=(1, 1), kernel_size=(3, 3), padding=1),
                 nn.Flatten(),
-                nn.Linear(3136, 256)
+                nn.Linear(3136, dim)
         )
         self.decoder = nn.Sequential(
-                torch.nn.Linear(256, 3136),
+                torch.nn.Linear(dim, 3136),
                 Reshape(-1, 64, 7, 7),
                 nn.ConvTranspose2d(64, 64, stride=(1, 1), kernel_size=(3, 3), padding=1),
                 nn.LeakyReLU(0.01),
@@ -53,7 +53,7 @@ class Trim(nn.Module):
         return x[:, :, :-1, :-1]  # Trim the last row and column
 
 if __name__ == "__main__":
-    dummy_input = torch.randn(5, 28, 28)  # Example input tensor
+    dummy_input = torch.randn(5, 1, 28, 28)  # Example input tensor
     model = Autoencoder()
     latent = model.encode(dummy_input)  # Add batch dimension
     reconstructed = model.decode(latent)
