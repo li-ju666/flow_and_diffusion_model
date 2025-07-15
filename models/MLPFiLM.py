@@ -65,7 +65,7 @@ class ResBlock(nn.Module):
 
 
 if __name__ == "__main__":
-    model = UNetMLP()
+    model = MLPFiLM()
     dummy_x = torch.randn(5, 256)  # Example input
     dummy_y = torch.randint(0, 11, (5, 1))     # Example input
     dummy_t = torch.randn(5, 1)     # Example input

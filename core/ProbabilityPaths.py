@@ -20,18 +20,6 @@ class ProbabilityPath:
         # Compute the conditional vector field on z at time t
         pass
 
-    def score_cond_z(self, x, z, t):
-        # Compute the conditional score
-        pass
-
-    def vector_field_guided_y(self, x, y, t):
-        # Compute the guided marginal vector field at time t
-        pass
-
-    def score_guided_y(self, x, y, t):
-        # Compute the guided marginal score at time t
-        pass
-
 
 class GaussianPath(ProbabilityPath):
     def __init__(self, model, alpha, beta, dim=256):
@@ -50,25 +38,6 @@ class GaussianPath(ProbabilityPath):
         t2 = self.beta.dt(t) / self.beta(t)
         return t1 * z + t2 * x
 
-    def score_cond_z(self, x, z, t):
-        # Compute the conditional score
-        return -self.beta(t).pow(-2) * (x - self.alpha(t) * z)
-
-    @torch.no_grad()
-    def vector_field_guided_y(self, x, y, t):
-        self.model.eval()
-        u = self.model(x, y, t)
-        return u
-
-    @torch.no_grad()
-    def score_guided_y(self, x, y, t, u=None):
-        eps = 1e-7
-        if u is None:
-            u = self.vector_field_guided_y(x, y, t)
-        t1 = self.alpha(t) * u - self.alpha.dt(t) * x
-        t2 = self.alpha.dt(t) * self.beta(t).pow(2) - self.beta(t) * self.beta.dt(t) * self.alpha(t)
-        return t1 / (t2 + eps)
-
 
 if __name__ == "__main__":
     import torch
@@ -85,6 +54,4 @@ if __name__ == "__main__":
     print("Sampled xt:", xt.size())
 
     vector_field = path.vector_field_cond_z(xt, z, t)
-    score = path.score_cond_z(xt, z, t)
     print("Vector field:", vector_field.size())
-    print("Score:", score.size())

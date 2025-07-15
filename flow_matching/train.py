@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import torch
 from core.ProbabilityPaths import GaussianPath
 from core.Schedulers import LinearAlpha, LinearBeta
-from model import MLPFiLM
+from models import MLPFiLM, MLPUnet
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -16,21 +16,21 @@ def load_data(batch_size=512):
     labels = torch.load(target_path)
     dataset = TensorDataset(features, labels)
     dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True
+        dataset, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True
     )
     return dataloader
 
-model = MLPFiLM(dim=512).to(DEVICE)
+# model = MLPFiLM(dim=512).to(DEVICE)  # 10 classes + 1 for 10.0 label
+model = MLPUnet(dim=512).to(DEVICE)  # 10 classes + 1 for 10.0 label
 
 dataloader = load_data()
 prob_path = GaussianPath(
     model, LinearAlpha(), LinearBeta(), dim=512)
 
-num_epochs = 500
-optimizer = torch.optim.AdamW(
-    model.parameters(), lr=1e-3, weight_decay=1e-4)
+num_epochs = 5000
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=num_epochs * len(dataloader), eta_min=1e-6
+    optimizer, T_max=num_epochs * len(dataloader), eta_min=1e-5
 )
 
 for epoch in range(num_epochs):  # Example training loop
@@ -43,8 +43,8 @@ for epoch in range(num_epochs):  # Example training loop
         # sample t
         t = torch.rand(z.size(0), 1).to(DEVICE).view(-1, 1)  # Random time steps
 
-        # randomly replace labels with 10.0 at 10% of the time
-        masks = torch.rand(y.size(0)) < 0.1
+        # randomly replace labels with 10.0 at 30% of the time
+        masks = torch.rand(y.size(0)) < 0.3
         y[masks] = 10.0
         y = y.view(-1, 1)
 

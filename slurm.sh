@@ -5,7 +5,7 @@
 
 EXE="apptainer exec --nv /mimer/NOBACKUP/groups/scalablefl/containers/torch.sif python3"
 
-${EXE} -m autoencoder.train
+${EXE} train.py
 
 wait
 echo "Done"
