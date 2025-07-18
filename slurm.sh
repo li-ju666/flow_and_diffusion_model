@@ -5,7 +5,7 @@
 
 EXE="apptainer exec --nv /mimer/NOBACKUP/groups/scalablefl/containers/torch.sif python3"
 
-${EXE} train.py
+${EXE} -m flow_matching.train
 
 wait
 echo "Done"

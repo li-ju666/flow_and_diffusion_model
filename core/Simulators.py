@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 
 class Simulator:
@@ -30,14 +31,26 @@ class ODESimulator(Simulator):
 
 
 class CFODESimulator(Simulator):
-    @torch.no_grad()
     def step(self, x, y, t, dt):
         m = 5
         # compute the guided vector field
-        guided_u = self.prob_path.model(x, y, t)
+        with torch.no_grad():
+            u, _ = self.prob_path.model(x, t)
 
-        # compute the unguided vector field
-        y = torch.ones_like(y) * 10
-        unguided_u = self.prob_path.model(x, y, t)
+        def cond_fn(x, t, y=None):
+            assert y is not None
+            with torch.enable_grad():
+                x_in = x.detach().requires_grad_(True)
+                film = self.prob_path.model.time_embed(t)
+                logits = self.prob_path.model.classifier(x_in, film)
+                log_probs = F.log_softmax(logits, dim=-1)
+                selected = log_probs[range(len(logits)), y.view(-1)]
+                return torch.autograd.grad(selected.sum(), x_in)[0]
 
-        return x + ((1-m)* unguided_u + m * guided_u) * dt
+        guidance = cond_fn(x, t, y)
+        # compute the vector field
+        vector_field = u + guidance * 4
+
+        # vector_field = u
+        # update the state
+        return x + vector_field * dt

@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import torch
 from core.ProbabilityPaths import GaussianPath
 from core.Schedulers import LinearAlpha, LinearBeta
-from models import MLPFiLM, MLPUnet
+from models import MLPFiLM
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -20,8 +20,7 @@ def load_data(batch_size=512):
     )
     return dataloader
 
-# model = MLPFiLM(dim=512).to(DEVICE)  # 10 classes + 1 for 10.0 label
-model = MLPUnet(dim=512).to(DEVICE)  # 10 classes + 1 for 10.0 label
+model = MLPFiLM(dim=512).to(DEVICE)
 
 dataloader = load_data()
 prob_path = GaussianPath(
@@ -43,20 +42,15 @@ for epoch in range(num_epochs):  # Example training loop
         # sample t
         t = torch.rand(z.size(0), 1).to(DEVICE).view(-1, 1)  # Random time steps
 
-        # randomly replace labels with 10.0 at 30% of the time
-        masks = torch.rand(y.size(0)) < 0.3
-        y[masks] = 10.0
-        y = y.view(-1, 1)
-
         # sample x from the probability path
         xt = prob_path.sample_xt_cond_z(z, t)
 
         # compute the model output
-        output = model(xt, y, t)
+        u, logits = model(xt, t)
 
         # compute loss (example: MSE)
         target = prob_path.vector_field_cond_z(xt, z, t).to(DEVICE)
-        loss = torch.nn.functional.mse_loss(output, target)
+        loss = torch.nn.functional.mse_loss(u, target) + torch.nn.functional.cross_entropy(logits, y)
         loss.backward()
         optimizer.step()
         scheduler.step()

@@ -17,33 +17,49 @@ class FourierFeatures(nn.Module):
 
 
 class MLPFiLM(nn.Module):
-    def __init__(self, dim=512, num_classes=11, blocks=10):
+    def __init__(self, dim=512, num_classes=10, blocks=10):
         super().__init__()
         # time → film
         self.time_embed = FourierFeatures(dim=dim)
-        # label → film
-        self.label_embed = nn.Embedding(num_classes, dim)
-        # label projection to match film dimension
-        self.label_proj  = nn.Linear(dim, dim*2)
-
         # residual blocks
         layers = [ResBlock(dim)
                   for i in range(blocks)]
         self.net   = nn.Sequential(*layers)
         self.final = nn.Linear(dim, dim)
 
-    def forward(self, x, y, t):
-        # x: [B,256], t: [B,1], y: [B] (long)
+
+        # classifier
+        self.classifier = Classifier(dim=dim, num_classes=num_classes)
+
+    def forward(self, x, t):
+        # x: [B,256], t: [B,1],
         # 1) time embedding τ(t)
-        film_time = self.time_embed(t) # [B,2*dim]
-        # 2) label embedding
-        y = self.label_embed(y).view(-1, self.label_embed.embedding_dim) # [B,dim]
-        film_label= self.label_proj(y) # [B,2*dim]
-        film = film_time + film_label          # [B,2*dim]
+        gen = x
+        film = self.time_embed(t) # [B,2*dim]
         # 3) pass through ResBlocks
         for block in self.net:
-            x = block(x, film)
-        return self.final(x)
+            gen = block(gen, film)
+        return self.final(gen), self.classifier(x, film)
+
+
+class Classifier(nn.Module):
+    def __init__(self, dim=512, num_classes=10):
+        super().__init__()
+        self.lin1 = nn.Linear(dim, dim)
+        self.lin2 = nn.Linear(dim, dim)
+        self.classifier = nn.Linear(dim, num_classes)
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, x, film):
+        # film: [B,2*dim] → scale, shift of [B,dim]
+        scale, shift = film.chunk(2, dim=-1)
+        h = self.lin1(x)
+        h = F.silu(h)
+        h = self.lin2(h)
+        # FiLM
+        h = self.norm(h) * (1 + scale) + shift
+        h = F.silu(h)
+        return self.classifier(h)
 
 class ResBlock(nn.Module):
     def __init__(self, dim):
